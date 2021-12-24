@@ -23,9 +23,15 @@ const generateProfile = profile =>
 const generateActiveProfile = profile =>
   `<activeProfile>${profile}</activeProfile>`;
 
-const parseParam = param => {
+function getEnvElement(param) {
+  return process.env[`PLUGIN_${param.toUpperCase()}`];
+}
+
+const parseSingleValueParam = param => getEnvElement(param);
+
+const parseArrayParam = param => {
   let config = [];
-  let env = process.env[`PLUGIN_${param.toUpperCase()}`];
+  let env = getEnvElement(param);
   if (!env) env = process.env[`MAVEN_${param.toUpperCase()}`];
 
   if (env) {
@@ -45,19 +51,24 @@ const parseParam = param => {
   return config;
 };
 
+function parseConfig() {
+  const config = ['servers', 'profiles', 'active_profiles'].reduce((
+    acc,
+    val
+  ) => {
+    acc[val] = parseArrayParam(val);
+    return acc;
+  }, {});
+  config['local_repository'] = parseSingleValueParam('local_repository');
+  return config;
+}
+
 module.exports = {
   init: () => {
     log('-- Preparing Maven for authentication...');
 
-    const config = ['servers', 'profiles', 'active_profiles'].reduce((
-      acc,
-      val
-    ) => {
-      acc[val] = parseParam(val);
-      return acc;
-    }, {});
-
-    const data = `<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd"><localRepository>${process.env.PWD}/.m2</localRepository><servers>${config.servers.map(generateServer).join('')}</servers><profiles>${config.profiles.map(generateProfile).join('')}</profiles><activeProfiles>${config.active_profiles.map(generateActiveProfile).join('')}</activeProfiles></settings>`;
+    const config = parseConfig();
+    const data = `<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd"><localRepository>${config.local_repository || (process.env.PWD + '/.m2')}</localRepository><servers>${config.servers.map(generateServer).join('')}</servers><profiles>${config.profiles.map(generateProfile).join('')}</profiles><activeProfiles>${config.active_profiles.map(generateActiveProfile).join('')}</activeProfiles></settings>`;
     try {
       fs.writeFileSync('settings.xml', data);
       log('-- Maven authentication done!');

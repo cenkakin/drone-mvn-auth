@@ -91,10 +91,11 @@ describe('Unit tests: Drone Maven Auth', () => {
       generateActiveProfile('jojo').should.eql('<activeProfile>jojo</activeProfile>');
     });
   });
-  describe('parseParam()', () => {
-    const parseParam = plugin.__get__('parseParam');
+  describe('parseArrayParam()', () => {
+    const parseArrayParam = plugin.__get__('parseArrayParam');
+    const parseSingleValueParam = plugin.__get__('parseSingleValueParam');
     it('should return empty array when envvar not found', () => {
-      const actual = parseParam('notfound');
+      const actual = parseArrayParam('notfound');
       actual.should.be.an.Array();
       actual.should.be.empty();
     });
@@ -106,7 +107,7 @@ describe('Unit tests: Drone Maven Auth', () => {
         exit: sinon.stub()
       };
       const revert = plugin.__set__('process', processMock);
-      parseParam('servers').should.eql([{
+      parseArrayParam('servers').should.eql([{
         id: 123,
         username: 'bobo',
         password: 'ziphead'
@@ -122,7 +123,7 @@ describe('Unit tests: Drone Maven Auth', () => {
         exit: sinon.stub()
       };
       const revert = plugin.__set__('process', processMock);
-      parseParam('servers').should.eql([{
+      parseArrayParam('servers').should.eql([{
         id: 123,
         username: 'bobo',
         password: 'ziphead'
@@ -138,7 +139,19 @@ describe('Unit tests: Drone Maven Auth', () => {
         exit: sinon.stub()
       };
       const revert = plugin.__set__('process', processMock);
-      parseParam('active_profiles').should.eql(['fuzz', 'bizz']);
+      parseArrayParam('active_profiles').should.eql(['fuzz', 'bizz']);
+      processMock.exit.should.have.callCount(0);
+      revert();
+    });
+    it('should parse json when localRepository', () => {
+      const processMock = {
+        env: {
+          PLUGIN_LOCAL_REPOSITORY: './maven-repo'
+        },
+        exit: sinon.stub()
+      };
+      const revert = plugin.__set__('process', processMock);
+      parseSingleValueParam('local_repository').should.eql('./maven-repo');
       processMock.exit.should.have.callCount(0);
       revert();
     });
@@ -150,7 +163,7 @@ describe('Unit tests: Drone Maven Auth', () => {
         exit: sinon.stub()
       };
       const revert = plugin.__set__('process', processMock);
-      parseParam('servers');
+      parseArrayParam('servers');
       processMock.exit.should.have.callCount(1);
       processMock.exit.should.be.calledWith(1);
       revert();
@@ -161,6 +174,7 @@ describe('Unit tests: Drone Maven Auth', () => {
       const processMock = {
         env: {
           PWD: '/root',
+          PLUGIN_LOCAL_REPOSITORY: './maven-repo',
           PLUGIN_SERVERS: '[{"id": 123, "username": "bobo", "password": ziphead}]'
         },
         exit: sinon.stub()
@@ -168,9 +182,9 @@ describe('Unit tests: Drone Maven Auth', () => {
       const fsMock = {
         writeFileSync: sinon.stub()
       };
-      const parseParamStub = sinon.stub().returns([1, 2, 3]);
+      const parseArrayParamStub = sinon.stub().returns([1, 2, 3]);
       const revert1 = plugin.__set__('process', processMock);
-      const revert2 = plugin.__set__('parseParam', parseParamStub);
+      const revert2 = plugin.__set__('parseArrayParam', parseArrayParamStub);
       const revert3 = plugin.__set__('fs', fsMock);
       const revert4 = plugin.__set__('generateActiveProfile', a => a);
       const revert5 = plugin.__set__('generateProfile', a => a);
@@ -178,9 +192,9 @@ describe('Unit tests: Drone Maven Auth', () => {
 
       plugin.init();
 
-      parseParamStub.should.have.callCount(3);
+      parseArrayParamStub.should.have.callCount(3);
       fsMock.writeFileSync.should.have.callCount(1);
-      fsMock.writeFileSync.should.be.calledWith('settings.xml', '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd"><localRepository>/root/.m2</localRepository><servers>123</servers><profiles>123</profiles><activeProfiles>123</activeProfiles></settings>');
+      fsMock.writeFileSync.should.be.calledWith('settings.xml', '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd"><localRepository>./maven-repo</localRepository><servers>123</servers><profiles>123</profiles><activeProfiles>123</activeProfiles></settings>');
       processMock.exit.should.have.callCount(1);
       processMock.exit.should.be.calledWith(0);
 
@@ -202,9 +216,9 @@ describe('Unit tests: Drone Maven Auth', () => {
       const fsMock = {
         writeFileSync: sinon.stub().throws('Holy crap!')
       };
-      const parseParamStub = sinon.stub().returns([1, 2, 3]);
+      const parseArrayParamStub = sinon.stub().returns([1, 2, 3]);
       const revert1 = plugin.__set__('process', processMock);
-      const revert2 = plugin.__set__('parseParam', parseParamStub);
+      const revert2 = plugin.__set__('parseArrayParam', parseArrayParamStub);
       const revert3 = plugin.__set__('fs', fsMock);
       const revert4 = plugin.__set__('generateActiveProfile', a => a);
       const revert5 = plugin.__set__('generateProfile', a => a);
@@ -212,7 +226,7 @@ describe('Unit tests: Drone Maven Auth', () => {
 
       plugin.init();
 
-      parseParamStub.should.have.callCount(3);
+      parseArrayParamStub.should.have.callCount(3);
       fsMock.writeFileSync.should.have.callCount(1);
       fsMock.writeFileSync.should.be.calledWith('settings.xml', '<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd"><localRepository>/root/.m2</localRepository><servers>123</servers><profiles>123</profiles><activeProfiles>123</activeProfiles></settings>');
       fsMock.writeFileSync.should.threw('Holy crap!');
